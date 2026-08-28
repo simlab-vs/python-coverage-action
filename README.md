@@ -1,10 +1,10 @@
 # python-coverage-action
 
-GitHub Action that reports Python coverage on a pull request and fails the run
-when the lines it adds are not covered enough.
+Comments Python coverage on a pull request, marks the lines it added that
+never ran, and fails the build when too few of them are covered.
 
-It runs on Node, with no container to build: the action starts in well under a
-second rather than pulling and building a Docker image on every job.
+It runs on Node. There is no container to build, so the step starts straight
+away instead of pulling and building an image on every job.
 
 ```yaml
 - run: uv run pytest --cov
@@ -14,6 +14,8 @@ second rather than pulling and building a Docker image on every job.
     minimumPatchCoverage: 85
 ```
 
+Hand it the JSON that `coverage json` writes. Everything else has a default.
+
 ## Inputs
 
 | Input | Required | Default | Description |
@@ -22,7 +24,7 @@ second rather than pulling and building a Docker image on every job.
 | `coverageFile` | no | `coverage.json` | Path to the JSON report written by `coverage json`. |
 | `minimumPatchCoverage` | no | | Fail when less than this percentage of the lines the pull request adds is covered. Blank asks for no gate. |
 | `minimumProjectCoverage` | no | | Fail when project coverage is below this percentage. Blank asks for no gate. |
-| `annotateMissingLines` | no | `true` | Annotate added lines that never ran, so they show up on the diff. |
+| `annotateMissingLines` | no | `true` | Mark added lines that never ran, so they show up on the diff. |
 | `comment` | no | `true` | Post the summary as a pull request comment, editing the previous one. |
 | `requireNonDecreasingCoverage` | no | `false` | Fail when a pull request lowers project coverage below what the base branch last recorded. |
 
@@ -31,79 +33,68 @@ second rather than pulling and building a Docker image on every job.
 | Output | Description |
 |--------|-------------|
 | `projectCoverage` | Percentage of the project's statements that ran. |
-| `patchCoverage` | Percentage of the lines the pull request adds that ran; empty when it adds none. |
+| `patchCoverage` | Percentage of the lines the pull request adds that ran. Empty when it adds none. |
 
-## What it does
+## What counts as covered
 
-1. Reads the report `coverage json` wrote.
-2. On a pull request, asks the API which lines the pull request adds, and
-   intersects them with the lines coverage measured.
-3. Posts a comment with both percentages, editing its own previous comment
-   rather than adding a new one on every push, and annotates the added lines
-   that never ran.
-4. Fails the run when either percentage is below its requirement.
+Patch coverage looks only at the lines coverage.py measured. Blank lines,
+comments and docstrings are neither covered nor missing, so adding them moves
+nothing. Files the report never mentions are skipped, which is how tests,
+configuration and anything under `omit` stay out of the number.
 
-## Requiring coverage not to fall
+Plenty of pull requests add no measurable line at all. Those get an empty
+`patchCoverage` and pass the gate. Failing a build over a percentage that does
+not exist helps nobody.
 
-`requireNonDecreasingCoverage` compares a pull request against the branch it
-targets. There is no baseline to compare against until one has been recorded,
-so the action records it on every build that is not a pull request, and reads
-it on the ones that are:
+## Keeping coverage from slipping
+
+Turn on `requireNonDecreasingCoverage` and a pull request that drops project
+coverage below its base branch fails.
+
+That needs a baseline, which the action keeps in the Actions cache. Builds
+that are not pull requests write it, pull requests read it:
 
 ```yaml
 on:
   push:
-    branches: [main]     # records the baseline
-  pull_request:          # compared against it
-
-# ...
-- uses: simlab-vs/python-coverage-action@v1.0.0
-  with:
-    requireNonDecreasingCoverage: true
+    branches: [main]   # writes the baseline
+  pull_request:        # checked against it
 ```
 
-The baseline lives in the GitHub Actions cache, which gives the comparison its
-direction for free: a pull request can read what a build of the base branch
-wrote, while what a pull request writes is visible to nothing else. No branch
-is created and no extra permission is needed.
+The cache happens to have exactly the visibility this wants. A pull request
+can read what its base branch cached, but nothing it writes is visible to the
+base branch or to other pull requests. No data branch to maintain, no extra
+permissions to grant.
 
-A run with no baseline to read passes and says so, which is what a first build
-and an evicted cache both look like. Matching the baseline exactly is not a
-decrease.
-
-Only lines coverage.py measured count towards patch coverage. An added blank
-line, comment or docstring is neither covered nor missing, and a file the
-report does not mention — tests, configuration, anything under `omit` — is
-skipped entirely. A pull request that adds no measurable line has no patch
-coverage to report: the output is empty and the gate passes rather than
-failing on a number that does not exist.
+A first build has no baseline to read, and neither does one whose cache has
+been evicted. Both pass, with a line in the log saying so. Landing exactly on
+the baseline counts as holding steady rather than slipping.
 
 ## Permissions
 
 ```yaml
 permissions:
   contents: read
-  pull-requests: write   # only needed for the comment
+  pull-requests: write   # only for the comment
 ```
 
-Reading the diff needs no more than the default token. Drop
+Reading the diff needs nothing beyond the default token. Drop
 `pull-requests: write` if you set `comment: false`.
 
-## Why this exists
+## Why it exists
 
-The alternatives are container actions: the runner builds a Docker image on
-every job before the step can start, which on a self-hosted runner with a
-disposable image store means pulling the base image every time. This action
-does what one project needed from that — a comment, annotations and a patch
-coverage gate — and nothing else.
+Coverage actions tend to ship as containers, which means the runner builds a
+Docker image before the step can even start. On a self-hosted runner with a
+throwaway image store there is no layer cache to help, so that base image gets
+pulled again on every single job. This action does the few things one project
+actually used out of that: a comment, annotations, and a patch coverage gate.
 
-## Acknowledgements
+## Credits
 
-The idea, and the shape of what a good coverage comment says, come from
+The idea comes from
 [py-cov-action/python-coverage-comment-action](https://github.com/py-cov-action/python-coverage-comment-action)
-by [Joachim Jablon](https://github.com/ewjoachim) and its contributors. That
-action does considerably more than this one — a coverage badge, an HTML
-dashboard, a stored history — and is the better choice for most projects.
-This is a deliberately smaller reimplementation for a self-hosted runner where
-building its container on every job was the dominant cost. No code was taken
-from it; both are MIT licensed. Thank you for the original.
+by [Joachim Jablon](https://github.com/ewjoachim) and its contributors, which
+is what this repository replaced and what taught it what a coverage comment
+should say. That action does considerably more: a coverage badge, an HTML
+dashboard, stored history. If you want any of that, reach for it instead. No
+code was copied here, and both are MIT licensed. Thanks for the original.

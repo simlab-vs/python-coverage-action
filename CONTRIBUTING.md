@@ -12,20 +12,22 @@ npm install
 
 ## Layout
 
-- `src/ports.ts` — interfaces for everything the action needs from the outside
-  (inputs, outputs, annotations, the pull request, the filesystem, the stored
-  baseline).
-- `src/adapters.ts` — those interfaces implemented with `@actions/*` and node.
-- `src/diff.ts` — which lines a unified diff adds.
-- `src/coverage.ts` — reading `coverage json` and intersecting it with a diff.
-- `src/report.ts` — rendering the comment.
-- `src/coverage-comment.ts` — the reporting logic and `main`, written only
+- `src/ports.ts`: interfaces for everything the action needs from the outside,
+  meaning inputs, outputs, annotations, the pull request, the filesystem and
+  the stored baseline.
+- `src/adapters.ts`: those interfaces implemented with `@actions/*` and node.
+- `src/diff.ts`: which lines a unified diff adds.
+- `src/coverage.ts`: reading `coverage json` and intersecting it with a diff.
+- `src/report.ts`: rendering the comment.
+- `src/coverage-comment.ts`: the reporting logic and `main`, written only
   against the ports.
-- `src/action.ts` — entry point: wires the adapters into `main`.
-- `tests/` — vitest suites; `tests/support/fakes.ts` has in-memory ports, so
-  the logic is tested without network or filesystem access.
-- `tests/fixtures/project` — a two-function Python package with one uncovered
+- `src/action.ts`: the entry point, wiring the adapters into `main`.
+- `tests/`: vitest suites. `tests/support/fakes.ts` has in-memory ports, so the
+  logic is tested without network or filesystem access.
+- `tests/fixtures/project`: a two-function Python package with one uncovered
   branch, which the integration test measures to produce a real report.
+
+Read [CONVENTIONS.md](CONVENTIONS.md) before changing any of it.
 
 ## Working on it
 
