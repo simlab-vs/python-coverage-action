@@ -2,7 +2,9 @@
 
 ## Setup
 
-Node 24, then:
+Node 24. Either install it locally or open the repo in the provided
+devcontainer, which is Alpine with node, git, the GitHub CLI and coverage.py
+for the fixture. Then:
 
 ```sh
 npm install

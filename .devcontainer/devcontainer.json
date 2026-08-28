@@ -1,0 +1,14 @@
+{
+  "name": "python-coverage-action dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // No devcontainer features: they assume a Debian base and its apt, while
+  // this image installs the same tools from Alpine's own packages.
+  "customizations": {
+    "vscode": {
+      "extensions": ["oxc.oxc-vscode", "vitest.explorer"]
+    }
+  },
+  "postCreateCommand": "npm install"
+}
