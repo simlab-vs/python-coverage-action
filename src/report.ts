@@ -21,8 +21,6 @@ export interface Summary {
   minimumPatchCoverage: number | undefined;
   /** The project coverage the run requires, or undefined when it requires none. */
   minimumProjectCoverage: number | undefined;
-  /** Project coverage on the base branch, or undefined when none was recorded. */
-  baselineCoverage: number | undefined;
 }
 
 /** Renders `summary` as the markdown body of the pull request comment. */
@@ -43,10 +41,6 @@ export function renderComment(summary: Summary): string {
         : verdict(patch.percentage, summary.minimumPatchCoverage)
     } | ${requirement(summary.minimumPatchCoverage)} |`,
   ];
-
-  if (summary.baselineCoverage !== undefined) {
-    lines.push("", change(summary.projectCoverage, summary.baselineCoverage));
-  }
 
   const missingFiles = [...patch.missingByFile.entries()];
   if (missingFiles.length > 0) {
@@ -69,14 +63,6 @@ export function renderComment(summary: Summary): string {
     lines.push("", "</details>");
   }
   return lines.join("\n");
-}
-
-/** Renders how `coverage` moved from the `baseline` the base branch recorded. */
-function change(coverage: number, baseline: number): string {
-  const difference = Math.round((coverage - baseline) * 100) / 100;
-  if (difference === 0) return `No change against the base branch's ${baseline.toFixed(2)}%.`;
-  const direction = difference > 0 ? "up" : "down";
-  return `Project coverage is ${direction} ${Math.abs(difference).toFixed(2)} points against the base branch's ${baseline.toFixed(2)}%.`;
 }
 
 /** Renders `percentage` with the mark its comparison against `minimum` earns. */

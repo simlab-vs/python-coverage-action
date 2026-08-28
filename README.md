@@ -26,7 +26,6 @@ Hand it the JSON that `coverage json` writes. Everything else has a default.
 | `minimumProjectCoverage` | no | | Fail when project coverage is below this percentage. Blank asks for no gate. |
 | `annotateMissingLines` | no | `true` | Mark added lines that never ran, so they show up on the diff. |
 | `comment` | no | `true` | Post the summary as a pull request comment, editing the previous one. |
-| `requireNonDecreasingCoverage` | no | `false` | Fail when a pull request lowers project coverage below what the base branch last recorded. |
 
 ## Outputs
 
@@ -45,30 +44,6 @@ configuration and anything under `omit` stay out of the number.
 Plenty of pull requests add no measurable line at all. Those get an empty
 `patchCoverage` and pass the gate. Failing a build over a percentage that does
 not exist helps nobody.
-
-## Keeping coverage from slipping
-
-Turn on `requireNonDecreasingCoverage` and a pull request that drops project
-coverage below its base branch fails.
-
-That needs a baseline, which the action keeps in the Actions cache. Builds
-that are not pull requests write it, pull requests read it:
-
-```yaml
-on:
-  push:
-    branches: [main]   # writes the baseline
-  pull_request:        # checked against it
-```
-
-The cache happens to have exactly the visibility this wants. A pull request
-can read what its base branch cached, but nothing it writes is visible to the
-base branch or to other pull requests. No data branch to maintain, no extra
-permissions to grant.
-
-A first build has no baseline to read, and neither does one whose cache has
-been evicted. Both pass, with a line in the log saying so. Landing exactly on
-the baseline counts as holding steady rather than slipping.
 
 ## Permissions
 

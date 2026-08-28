@@ -32,7 +32,6 @@ describe("readOptions", () => {
       minimumProjectCoverage: undefined,
       annotateMissingLines: true,
       comment: true,
-      requireNonDecreasingCoverage: false,
     });
   });
 
@@ -170,65 +169,6 @@ describe("main", () => {
 
     expect(fakes.core.failures).toHaveLength(1);
     expect(fakes.core.failures[0]).toMatch(/coverage\.json/);
-  });
-
-  test("records the baseline off a pull request, and only when asked to", async () => {
-    const fakes = new Fakes();
-    fakes.fileSystem.files["coverage.json"] = REPORT;
-    await main(fakes);
-    expect(fakes.baseline.written).toEqual([]);
-
-    fakes.core.inputs = { requireNonDecreasingCoverage: "true" };
-    await main(fakes);
-    expect(fakes.baseline.written).toEqual([75]);
-  });
-
-  test("fails a pull request that lowers coverage below the baseline", async () => {
-    const { fakes } = fakesOnPullRequest();
-    fakes.core.inputs = { requireNonDecreasingCoverage: "true" };
-    fakes.baseline.recorded = 80;
-    await main(fakes);
-
-    expect(fakes.core.failures).toEqual(["Project coverage fell from 80.00% to 75.00%."]);
-    expect(fakes.baseline.written).toEqual([]);
-  });
-
-  test.each([75, 70])(
-    "passes a pull request that holds coverage at or above %s",
-    async (recorded) => {
-      const { fakes } = fakesOnPullRequest();
-      fakes.core.inputs = { requireNonDecreasingCoverage: "true" };
-      fakes.baseline.recorded = recorded;
-      await main(fakes);
-
-      expect(fakes.core.failures).toEqual([]);
-    },
-  );
-
-  test("passes when no baseline was ever recorded", async () => {
-    const { fakes } = fakesOnPullRequest();
-    fakes.core.inputs = { requireNonDecreasingCoverage: "true" };
-    await main(fakes);
-
-    expect(fakes.core.failures).toEqual([]);
-    expect(fakes.core.infos.join("\n")).toContain("No baseline recorded yet");
-  });
-
-  test("leaves the baseline alone when the option is off", async () => {
-    const { fakes } = fakesOnPullRequest();
-    fakes.baseline.recorded = 90;
-    await main(fakes);
-
-    expect(fakes.core.failures).toEqual([]);
-  });
-
-  test("reports the change against the baseline in the comment", async () => {
-    const { fakes, pull } = fakesOnPullRequest();
-    fakes.core.inputs = { requireNonDecreasingCoverage: "true" };
-    fakes.baseline.recorded = 70;
-    await main(fakes);
-
-    expect(pull.added[0]).toContain("up 5.00 points against the base branch's 70.00%");
   });
 
   test("fails the run when an input is not a percentage", async () => {

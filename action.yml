@@ -31,10 +31,6 @@ inputs:
     required: false
     description: "Post the summary as a pull request comment, editing the previous one."
     default: 'true'
-  requireNonDecreasingCoverage:
-    required: false
-    description: "Fail when a pull request lowers project coverage below what the base branch last recorded. Builds off a pull request record the baseline."
-    default: 'false'
 
 outputs:
   projectCoverage:
