@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Format, lint, typecheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+
+  check-dist:
+    name: Check dist/ is up to date
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Verify dist/ has no uncommitted changes
+        run: |
+          if ! git diff --exit-code -- dist; then
+            echo "::error::dist/ is out of date. Run 'npm run pack' and commit the result."
+            exit 1
+          fi
+
+  integration-test:
+    name: Integration test
+    needs: [unit-tests, check-dist]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # A real report from a real run, so the action is exercised against
+      # coverage.py's actual output rather than a fixture someone hand-wrote.
+      # The fixture leaves one branch of `divide` untested, so the project is
+      # deliberately short of 100%.
+      - name: Measure the fixture project
+        run: |
+          python3 -m pip install --quiet coverage
+          cd tests/fixtures/project
+          python3 -m coverage run --branch -m unittest discover -s . -p 'test_*.py'
+          python3 -m coverage json -o "$GITHUB_WORKSPACE/coverage.json"
+
+      - id: coverage
+        name: Report, with a requirement the fixture meets
+        uses: ./
+        with:
+          coverageFile: coverage.json
+          minimumProjectCoverage: '10'
+
+      - name: The output must be a percentage below 100
+        run: |
+          project='${{ steps.coverage.outputs.projectCoverage }}'
+          echo "project coverage: $project"
+          awk -v value="$project" 'BEGIN {
+            if (value <= 0 || value >= 100) {
+              print "::error::expected a percentage short of 100, got " value
+              exit 1
+            }
+          }'
+
+      # The gate has to fail the run, not just report: a threshold nothing can
+      # meet must come back as a failed step.
+      - id: gate
+        name: Report, with a requirement nothing can meet
+        uses: ./
+        continue-on-error: true
+        with:
+          coverageFile: coverage.json
+          minimumProjectCoverage: '100'
+          comment: 'false'
+      - name: That step must have failed
+        run: |
+          if [ '${{ steps.gate.outcome }}' != 'failure' ]; then
+            echo "::error::the 100% requirement did not fail the step"
+            exit 1
+          fi
+
+      # Only a pull request has a diff and a place to comment, so the rest of
+      # the path is checked when the workflow runs as one.
+      - name: The comment must be on the pull request
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bodies="$(gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.number }}/comments" \
+            --paginate --jq '.[].body')"
+          if ! grep -q '<!-- python-coverage-action -->' <<< "$bodies"; then
+            echo "::error::the action posted no comment on this pull request"
+            exit 1
+          fi

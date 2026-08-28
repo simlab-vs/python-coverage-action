@@ -1,0 +1,42 @@
+# SPDX short identifier: MIT
+
+name: 'python-coverage-action'
+description: 'Reports Python coverage on a pull request and fails the run below a patch coverage threshold.'
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
+
+inputs:
+  githubToken:
+    required: false
+    description: "Token used to read the diff and write the comment."
+    default: ${{ github.token }}
+  coverageFile:
+    required: false
+    description: "Path to the JSON report written by `coverage json`."
+    default: 'coverage.json'
+  minimumPatchCoverage:
+    required: false
+    description: "Fail when less than this percentage of the lines the pull request adds is covered. Blank asks for no gate."
+    default: ''
+  minimumProjectCoverage:
+    required: false
+    description: "Fail when project coverage is below this percentage. Blank asks for no gate."
+    default: ''
+  annotateMissingLines:
+    required: false
+    description: "Annotate added lines that never ran, so they show up on the diff."
+    default: 'true'
+  comment:
+    required: false
+    description: "Post the summary as a pull request comment, editing the previous one."
+    default: 'true'
+
+outputs:
+  projectCoverage:
+    description: "Percentage of the project's statements that ran."
+  patchCoverage:
+    description: "Percentage of the lines the pull request adds that ran; empty when it adds none."
+branding:
+  icon: 'umbrella'
+  color: 'green'
