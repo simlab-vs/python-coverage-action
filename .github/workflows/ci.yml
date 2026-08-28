@@ -108,6 +108,22 @@ jobs:
 
       # Only a pull request has a diff and a place to comment, so the rest of
       # the path is checked when the workflow runs as one.
+      # The baseline is written off a pull request and read on one, so a run
+      # that has never seen a baseline must pass rather than fail closed.
+      - id: baseline
+        name: Report, requiring coverage not to fall
+        uses: ./
+        with:
+          coverageFile: coverage.json
+          requireNonDecreasingCoverage: 'true'
+          comment: 'false'
+      - name: That step must have succeeded
+        run: |
+          if [ '${{ steps.baseline.outcome }}' != 'success' ]; then
+            echo "::error::requiring non-decreasing coverage failed with no baseline to compare against"
+            exit 1
+          fi
+
       - name: The comment must be on the pull request
         if: github.event_name == 'pull_request'
         env:

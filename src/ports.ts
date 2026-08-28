@@ -17,6 +17,8 @@ export interface Options {
   annotateMissingLines: boolean;
   /** True iff the summary is posted as a pull request comment. */
   comment: boolean;
+  /** True iff a pull request may not lower project coverage. */
+  requireNonDecreasingCoverage: boolean;
 }
 
 /** Where an annotation points, with lines counted from 1. */
@@ -73,6 +75,17 @@ export interface PullRequest {
   updateComment(id: number, body: string): Promise<void>;
 }
 
+/**
+ * The project coverage carried from one run to the next, so a pull request can
+ * be compared against the branch it targets.
+ */
+export interface BaselineStore {
+  /** Resolves to the coverage an earlier run recorded, or undefined when none did. */
+  read(): Promise<number | undefined>;
+  /** Records `coverage` for later runs to read. */
+  write(coverage: number): Promise<void>;
+}
+
 /** Reading the checked-out workspace. */
 export interface FileSystem {
   /** Resolves to the contents of `path`; rejects when it cannot be read. */
@@ -90,4 +103,5 @@ export interface Ports {
   core: ActionsCore;
   fileSystem: FileSystem;
   environment: Environment;
+  baseline: BaselineStore;
 }

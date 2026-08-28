@@ -7,6 +7,7 @@
 import {
   ActionsCore,
   Annotation,
+  BaselineStore,
   ChangedFile,
   Comment,
   Environment,
@@ -77,6 +78,20 @@ export class FakeFileSystem implements FileSystem {
   }
 }
 
+export class FakeBaselineStore implements BaselineStore {
+  /** What `read` answers: a percentage, or undefined when none was recorded. */
+  recorded: number | undefined = undefined;
+  written: number[] = [];
+
+  read(): Promise<number | undefined> {
+    return Promise.resolve(this.recorded);
+  }
+  write(coverage: number): Promise<void> {
+    this.written.push(coverage);
+    return Promise.resolve();
+  }
+}
+
 export class FakeEnvironment implements Environment {
   /** The pull request to report on, or undefined for a push build. */
   pull: PullRequest | undefined = undefined;
@@ -91,4 +106,5 @@ export class Fakes implements Ports {
   core = new FakeCore();
   fileSystem = new FakeFileSystem();
   environment = new FakeEnvironment();
+  baseline = new FakeBaselineStore();
 }

@@ -21,6 +21,7 @@ describe("renderComment", () => {
     },
     minimumPatchCoverage: 85,
     minimumProjectCoverage: undefined,
+    baselineCoverage: undefined,
   };
 
   test("carries the marker that identifies the comment to replace", () => {
@@ -42,6 +43,20 @@ describe("renderComment", () => {
     });
     expect(body).toContain("no new lines to cover");
     expect(body).not.toContain("not covered</summary>");
+  });
+
+  // The summary covers 91.5% of the project, so a lower baseline is a rise.
+  test.each([
+    [95, "down 3.50 points against the base branch's 95.00%"],
+    [92, "down 0.50 points"],
+    [91.5, "No change against the base branch's 91.50%"],
+    [88, "up 3.50 points against the base branch's 88.00%"],
+  ])("describes the move from a baseline of %s", (baselineCoverage, expected) => {
+    expect(renderComment({ ...summary, baselineCoverage })).toContain(expected);
+  });
+
+  test("says nothing about a baseline when none was recorded", () => {
+    expect(renderComment(summary)).not.toContain("base branch");
   });
 
   test("shows a dash where no requirement is set", () => {

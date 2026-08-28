@@ -22,6 +22,7 @@ export function readOptions(core: ActionsCore): Options {
     minimumProjectCoverage: readPercentage(core, "minimumProjectCoverage"),
     annotateMissingLines: readBoolean(core, "annotateMissingLines", true),
     comment: readBoolean(core, "comment", true),
+    requireNonDecreasingCoverage: readBoolean(core, "requireNonDecreasingCoverage", false),
   };
 }
 
@@ -32,7 +33,7 @@ export function readOptions(core: ActionsCore): Options {
  */
 export async function main(ports: Ports): Promise<void> {
   try {
-    await report(ports);
+    await reportCoverage(ports);
   } catch (error) {
     ports.core.setFailed(error instanceof Error ? error.message : String(error));
   }
@@ -45,8 +46,8 @@ export async function main(ports: Ports): Promise<void> {
  * A pull request that adds no measurable line has no patch coverage to
  * report, and passes the patch gate rather than failing it.
  */
-async function report(ports: Ports): Promise<void> {
-  const { core, fileSystem, environment } = ports;
+async function reportCoverage(ports: Ports): Promise<void> {
+  const { core, fileSystem, environment, baseline } = ports;
   const options = readOptions(core);
 
   const report = parseReport(await fileSystem.readFile(options.coverageFile));
@@ -54,6 +55,27 @@ async function report(ports: Ports): Promise<void> {
   core.info(`Project coverage: ${report.projectCoverage.toFixed(2)}%`);
 
   const pullRequest = environment.pullRequest();
+
+  // The baseline is read on a pull request and written everywhere else, which
+  // is what makes the comparison one against the branch being targeted: the
+  // Actions cache lets a pull request read what a build of the base branch
+  // wrote, and not the other way round.
+  let recorded: number | undefined;
+  if (options.requireNonDecreasingCoverage) {
+    if (pullRequest === undefined) {
+      await core.group("Recording the coverage baseline", () =>
+        baseline.write(report.projectCoverage),
+      );
+    } else {
+      recorded = await core.group("Reading the coverage baseline", () => baseline.read());
+      core.info(
+        recorded === undefined
+          ? "No baseline recorded yet; coverage cannot be compared against the base branch."
+          : `Baseline coverage: ${recorded.toFixed(2)}%`,
+      );
+    }
+  }
+
   let patch: PatchCoverage = { covered: 0, missingByFile: new Map(), percentage: undefined };
   if (pullRequest !== undefined) {
     const changes = await core.group("Reading the pull request diff", () =>
@@ -72,7 +94,10 @@ async function report(ports: Ports): Promise<void> {
     if (options.annotateMissingLines) annotate(core, patch);
     if (options.comment) {
       await core.group("Commenting on the pull request", () =>
-        upsertComment(pullRequest, renderComment({ ...options, ...report, patch })),
+        upsertComment(
+          pullRequest,
+          renderComment({ ...options, ...report, patch, baselineCoverage: recorded }),
+        ),
       );
     }
   }
@@ -80,6 +105,7 @@ async function report(ports: Ports): Promise<void> {
   const failures = [
     shortfall("Patch", patch.percentage, options.minimumPatchCoverage),
     shortfall("Project", report.projectCoverage, options.minimumProjectCoverage),
+    decrease(report.projectCoverage, recorded),
   ].filter((message) => message !== undefined);
   if (failures.length > 0) core.setFailed(failures.join(" "));
 }
@@ -109,6 +135,16 @@ function shortfall(
 ): string | undefined {
   if (minimum === undefined || percentage === undefined || percentage >= minimum) return undefined;
   return `${what} coverage is ${percentage.toFixed(2)}%, below the required ${minimum}%.`;
+}
+
+/**
+ * Returns the message for `coverage` having fallen below `recorded`, or
+ * undefined when it has not: with no baseline there is nothing to fall below,
+ * and matching it exactly is not a decrease.
+ */
+function decrease(coverage: number, recorded: number | undefined): string | undefined {
+  if (recorded === undefined || coverage >= recorded) return undefined;
+  return `Project coverage fell from ${recorded.toFixed(2)}% to ${coverage.toFixed(2)}%.`;
 }
 
 /** Replaces this action's earlier comment, or adds one when there is none. */

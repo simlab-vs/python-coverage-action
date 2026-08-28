@@ -13,7 +13,8 @@ npm install
 ## Layout
 
 - `src/ports.ts` — interfaces for everything the action needs from the outside
-  (inputs, outputs, annotations, the pull request, the filesystem).
+  (inputs, outputs, annotations, the pull request, the filesystem, the stored
+  baseline).
 - `src/adapters.ts` — those interfaces implemented with `@actions/*` and node.
 - `src/diff.ts` — which lines a unified diff adds.
 - `src/coverage.ts` — reading `coverage json` and intersecting it with a diff.
